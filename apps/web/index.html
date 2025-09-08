@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>F1 Pit Stop — Mobile Vertical</title>
+  <style>
+    :root { --ink:#0f172a; --muted:#64748b; --brand:#059669; --amber:#f59e0b; --indigo:#6366f1; --blue:#2563eb; }
+    *{box-sizing:border-box}
+    body{margin:0;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica Neue,Arial;color:var(--ink);background:linear-gradient(#f8fafc,#eef2f7)}
+    .container{max-width:900px;margin:0 auto;padding:16px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+    h1{margin:0;font-size:clamp(18px,2.4vw,24px)}
+    .btn{border:0;background:white;color:var(--ink);padding:10px 14px;border-radius:12px;box-shadow:0 2px 8px rgba(2,6,23,.08);cursor:pointer;transition:.2s}
+    .btn:hover{box-shadow:0 6px 16px rgba(2,6,23,.12)}
+    .btn.primary{background:var(--brand);color:white;font-weight:600}
+    .btn.block{width:100%}
+    .card{background:white;border-radius:16px;box-shadow:0 2px 10px rgba(2,6,23,.08);padding:12px}
+    .muted{color:var(--muted)}
+    .progress{width:100%;height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden}
+    .progress>i{display:block;height:100%;background:var(--brand);width:0%}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .stat{display:flex;flex-direction:column;align-items:center;padding:8px;border-radius:12px;background:rgba(255,255,255,.7);box-shadow:0 1px 4px rgba(2,6,23,.06)}
+    .stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+    .stat .v{font-variant-numeric:tabular-nums;font-weight:700;font-size:18px}
+
+    /* Вертикальная пит-лейн для телефонов */
+    .lane{position:relative;height:min(78vh,720px);border-radius:16px;overflow:hidden;border:1px solid #cbd5e1;background:linear-gradient(#f1f5f9,#e2e8f0)}
+    .lane .centerline{position:absolute;left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%);background:#cbd5e1}
+    .lane .box{position:absolute;left:0;right:0;top:50%;height:200px;transform:translateY(-50%);border-top:5px dashed rgba(234,179,8,.9);border-bottom:5px dashed rgba(234,179,8,.9)}
+
+    /* Слои */
+    .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:6;pointer-events:none}
+    .overlay .start-btn{pointer-events:auto}
+    .count{padding:8px 18px;border-radius:12px;background:rgba(0,0,0,.7);color:white;font-size:56px;font-weight:900;letter-spacing:.08em}
+    .controls-layer{position:absolute;inset:0;pointer-events:none;z-index:5}
+
+    .car{position:absolute;left:50%;top:50%;width:240px;height:480px;z-index:4;pointer-events:none;
+         --ry: 0deg; --ty: calc(-50% + 520px);
+         transform: translate(-50%, var(--ty)) rotate(var(--ry));
+         transition: transform .9s cubic-bezier(.18,.82,.2,1);
+    }
+    .car.in{ --ty: -50%; }
+    .car.exit{ --ty: -160%; }
+    .car.lift-front{ --ry: -2deg; }
+    .car.lift-rear{ --ry: 2deg; }
+    .car.drs-open #drs-flap{ transform: translateY(-6px); }
+
+    #svgCar #drs-flap{ transition: transform .25s ease; transform-box: fill-box; transform-origin: 50% 50%; }
+
+    /* Контекстные кнопки */
+    .ctx-btn{position:absolute;pointer-events:auto;padding:10px 14px;border:0;border-radius:12px;box-shadow:0 2px 8px rgba(2,6,23,.12);color:white;font-weight:600;cursor:pointer}
+    .ctx-green{background:var(--brand)}
+    .ctx-amber{background:var(--amber)}
+    .ctx-indigo{background:var(--indigo)}
+    .ctx-blue{background:var(--blue)}
+
+    .finish{margin-top:10px;padding:12px;border-radius:12px;background:var(--brand);color:white;box-shadow:0 10px 24px rgba(2,6,23,.2);display:none}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div style="display:flex;align-items:center;gap:10px"><div style="font-size:22px">🏁</div><h1>F1 Pit Stop — 17 Click Challenge</h1></div>
+      <button id="btnReset" class="btn">Reset</button>
+    </header>
+
+    <div class="card">
+      <div class="progress"><i id="progressBar"></i></div>
+      <div class="muted" style="margin-top:6px;font-size:12px">Progress: <span id="progressText">0/17</span></div>
+      <div class="stats" style="margin-top:8px">
+        <div class="stat"><div class="k">Time</div><div class="v" id="timeVal">00:00.000</div></div>
+        <div class="stat"><div class="k">Best</div><div class="v" id="bestVal">—</div></div>
+        <div class="stat"><div class="k">Phase</div><div class="v" id="phaseVal">pre</div></div>
+      </div>
+
+      <div class="lane" style="margin-top:10px">
+        <div class="centerline"></div>
+        <div class="box"></div>
+
+        <!-- Машина: inline SVG -->
+        <div id="car" class="car">
+          <svg id="svgCar" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 720" width="100%" height="100%" style="display:block;pointer-events:none">
+            <defs>
+              <linearGradient id="bodyGrad" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#ffb300"/>
+                <stop offset="100%" stop-color="#f59e0b"/>
+              </linearGradient>
+              <style><![CDATA[
+                .shadow { fill: rgba(0,0,0,0.12); }
+                .floor  { fill: #0f172a22; }
+                .body   { fill: url(#bodyGrad); }
+                .body-dark { fill: #e58b0a; }
+                .wing   { fill: #101826; }
+                .wing-mid { fill: #161f2e; }
+                .wing-light{ fill: #1b2436; }
+                .cockpit{ fill: #0b1222; }
+                .halo   { fill: #0b1222; }
+                .tyre   { fill: #0b0b0b; }
+                .wheel  { fill: none; stroke-width: 8; }
+                .compound-red    { stroke: #ef4444; }
+                .compound-yellow { stroke: #eab308; }
+              ]]></style>
+            </defs>
+
+            <g id="carRoot" transform="translate(180,360)">
+              <!-- Ограниченный пол и тень -->
+              <ellipse class="shadow" cx="0" cy="70" rx="100" ry="210"/>
+              <rect class="floor" x="-88" y="-140" width="176" height="450" rx="18"/>
+
+              <!-- Переднее крыло (широкое, детальное) -->
+              <g id="front-wing" transform="translate(0,-305)">
+                <path class="wing" d="M-160,-8 h14 v76 h-14 q-10,-12 0,-24 z"/>
+                <path class="wing" d="M146,-8 h14 v76 h-14 q10,-12 0,-24 z"/>
+                <path class="wing" d="M-150,-6 h300 q24,12 0,18 h-300 q-24,-6 0,-18 z"/>
+                <path class="wing-light" d="M-146,16 h292 q20,10 0,16 h-292 q-20,-6 0,-16 z"/>
+                <path class="wing-mid" d="M-142,34 h284 q18,8 0,12 h-284 q-18,-4 0,-12 z"/>
+                <path class="wing-light" d="M-138,48 h276 q14,6 0,10 h-276 q-14,-4 0,-10 z"/>
+                <rect class="wing-mid" x="-160" y="8" width="24" height="8" rx="3"/>
+                <rect class="wing-mid" x="136"  y="8" width="24" height="8" rx="3"/>
+                <rect class="wing-mid" x="-160" y="20" width="20" height="6" rx="3"/>
+                <rect class="wing-mid" x="140"  y="20" width="20" height="6" rx="3"/>
+                <rect class="wing" x="-20" y="-8" width="10" height="74" rx="4"/>
+                <rect class="wing" x="10" y="-8" width="10" height="74" rx="4"/>
+              </g>
+
+              <!-- Кузов -->
+              <path id="body" class="body" d="M 0 -210 C -10 -210, -14 -198, -16 -186 L -24 -120 C -62 -100, -78 -70, -82 -28 C -84 10, -66 40, -50 56 C -38 68, -34 92, -34 126 C -34 172, -28 218, -20 258 C -16 276, -8 294, 0 294 C 8 294, 16 276, 20 258 C 28 218, 34 172, 34 126 C 34 92, 38 68, 50 56 C 66 40, 84 10, 82 -28 C 78 -70, 62 -100, 24 -120 L 16 -186 C 14 -198, 10 -210, 0 -210 Z"/>
+              <path class="body-dark" d="M-80 -28 C -80 10 -58 32 -46 44 C -34 58 -30 78 -30 126 C -30 172 -26 220 -18 258 L -36 258 C -44 220 -48 172 -48 126 C -48 88 -54 76 -66 62 C -80 46 -90 22 -88 -10 C -86 -34 -82 -38 -80 -28 Z"/>
+              <path class="body-dark" d="M80 -28 C 80 10 58 32 46 44 C 34 58 30 78 30 126 C 30 172 26 220 18 258 L 36 258 C 44 220 48 172 48 126 C 48 88 54 76 66 62 C 80 46 90 22 88 -10 C 86 -34 82 -38 80 -28 Z"/>
+              <path class="body" d="M -12 -222 h24 q8,8 0,16 h-24 q-8,-8 0,-16 z"/>
+              <rect class="cockpit" x="-36" y="-28" width="72" height="112" rx="14"/>
+              <rect class="halo" x="-88" y="-40" width="176" height="12" rx="6"/>
+              <rect class="halo" x="-6" y="-40" width="12" height="44" rx="6"/>
+
+              <!-- Заднее крыло: трапеция (сужается кверху) и DRS-флап отдельной группой -->
+              <g id="rear-wing" transform="translate(0,292)">
+                <path class="wing" d="M-80,-60 h14 v88 h-14 q-10,-10 0,-16 z"/>
+                <path class="wing" d="M66,-60 h14 v88 h-14 q10,-10 0,-16 z"/>
+                <path id="rw-main" class="wing" d="M-70,-60 h140 q16,8 0,14 h-140 q-16,-6 0,-14 z"/>
+                <path id="rw-upper" class="wing-light" d="M-56,-46 h112 q14,6 0,10 h-112 q-14,-4 0,-10 z"/>
+                <g id="drs-flap" class="drs"><path class="wing-mid" d="M-42,-32 h84 q12,5 0,8 h-84 q-12,-3 0,-8 z"/></g>
+                <rect class="wing-light" x="-54" y="14" width="108" height="7" rx="4"/>
+                <rect class="wing-mid"   x="-50" y="26" width="100" height="5" rx="3"/>
+                <rect class="wing" x="-6" y="-60" width="12" height="102" rx="4"/>
+              </g>
+
+              <!-- Колёса (крупные) -->
+              <g id="wheel-FL" transform="translate(-102,-170)">
+                <rect class="tyre" x="-26" y="-52" width="52" height="104" rx="16"/>
+                <rect id="ring-FL" class="wheel compound-red" x="-22" y="-48" width="44" height="96" rx="14"/>
+              </g>
+              <g id="wheel-FR" transform="translate(102,-170)">
+                <rect class="tyre" x="-26" y="-52" width="52" height="104" rx="16"/>
+                <rect id="ring-FR" class="wheel compound-red" x="-22" y="-48" width="44" height="96" rx="14"/>
+              </g>
+              <g id="wheel-RL" transform="translate(-102,170)">
+                <rect class="tyre" x="-26" y="-52" width="52" height="104" rx="16"/>
+                <rect id="ring-RL" class="wheel compound-red" x="-22" y="-48" width="44" height="96" rx="14"/>
+              </g>
+              <g id="wheel-RR" transform="translate(102,170)">
+                <rect class="tyre" x="-26" y="-52" width="52" height="104" rx="16"/>
+                <rect id="ring-RR" class="wheel compound-red" x="-22" y="-48" width="44" height="96" rx="14"/>
+              </g>
+            </g>
+          </svg>
+        </div>
+
+        <div id="controlsLayer" class="controls-layer"></div>
+
+        <!-- Overlay: Start / Countdown -->
+        <div id="overlay" class="overlay" aria-hidden="false">
+          <button id="btnStart" class="btn primary start-btn">Start</button>
+        </div>
+      </div>
+
+      <div id="finishBanner" class="finish">
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:.08em">Pit Stop Complete</div>
+        <div style="font-size:18px;font-weight:700">Time: <span id="finalTime">—</span></div>
+        <div id="bestNote" style="margin-top:4px;font-size:12px"></div>
+      </div>
+
+      <div class="muted" style="margin-top:8px;font-size:12px">Phone mode: Start overlay → 3–2–1 → въезд снизу → домкраты (Front=верх, Rear=низ) → колёса ×4 ×4 ×4 → домкраты вниз → флаг → DRS → выезд вверх.</div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const $ = (sel, root=document)=> root.querySelector(sel);
+    const pad = (n,l=2)=> String(n).padStart(l,'0');
+    const fmt = (ms)=>{ const s=Math.floor(ms/1000), m=pad(Math.floor(s/60)), ss=pad(s%60), ms3=pad(ms%1000,3); return `${m}:${ss}.${ms3}`; };
+
+    // DOM
+    const btnReset = $('#btnReset');
+    const overlay = $('#overlay');
+    let btnStart = $('#btnStart');
+    const car = $('#car');
+    const progressBar = $('#progressBar');
+    const progressText = $('#progressText');
+    const timeVal = $('#timeVal');
+    const bestVal = $('#bestVal');
+    const phaseVal = $('#phaseVal');
+    const finishBanner = $('#finishBanner');
+    const finalTime = $('#finalTime');
+    const bestNote = $('#bestNote');
+    const ctrls = $('#controlsLayer');
+
+    // SVG rings for compound switching
+    const ringFL = $('#ring-FL');
+    const ringFR = $('#ring-FR');
+    const ringRL = $('#ring-RL');
+    const ringRR = $('#ring-RR');
+
+    // State
+    const TOTAL_STEPS = 17;
+    let phase = 'pre';
+    let isArmed = false, countdown = null, carIn = false;
+
+    let frontUp=false, rearUp=false;
+    const loosened = new Set();
+    const swapped = new Set();
+    const tightened = new Set();
+    let frontDown=false, rearDown=false;
+    let flagRaised=false;
+
+    let started=false, finished=false, elapsed=0, t0=null, rAF=null;
+
+    let bestMs = null; try{ const b = Number(localStorage.getItem('pitstop_best')); if(Number.isFinite(b)) bestMs=b; }catch{}
+    bestVal.textContent = bestMs!=null ? fmt(bestMs) : '—';
+
+    function startTimer(){ if(rAF) return; t0 = performance.now() - elapsed; const tick=()=>{ if(!started||finished) return; elapsed = performance.now() - t0; timeVal.textContent = fmt(Math.floor(elapsed)); rAF = requestAnimationFrame(tick); }; rAF = requestAnimationFrame(tick); }
+    function stopTimer(){ if(rAF){ cancelAnimationFrame(rAF); rAF=null; } }
+
+    function setPhase(p){ phase=p; phaseVal.textContent=p; renderControls(); renderHUD(); }
+    function renderHUD(){ let done=0; done+=(frontUp?1:0)+(rearUp?1:0); done+=loosened.size+swapped.size+tightened.size; done+=(frontDown?1:0)+(rearDown?1:0); done+=(flagRaised?1:0); progressText.textContent=`${done}/${TOTAL_STEPS}`; progressBar.style.width=`${(done/TOTAL_STEPS*100).toFixed(1)}%`; }
+    function ensureStarted(){ if(!started){ started=true; startTimer(); } }
+
+    function clearControls(){ ctrls.innerHTML=''; }
+
+    // Позиции кнопок (вертикальная ориентация)
+    function place(el, where){
+      const map = {
+        FL: { left: 'calc(50% - 120px)', top: 'calc(50% - 160px)' },
+        FR: { left: 'calc(50% + 120px)', top: 'calc(50% - 160px)' },
+        RL: { left: 'calc(50% - 120px)', top: 'calc(50% + 130px)' },
+        RR: { left: 'calc(50% + 120px)', top: 'calc(50% + 130px)' },
+        frontTop: { left: '50%', top: 'calc(50% - 210px)', transform:'translate(-50%,0)' },
+        rearBottom: { left: '50%', top: 'calc(50% + 210px)', transform:'translate(-50%,0)' },
+        flag: { left: '50%', top: '8px', transform:'translate(-50%,0)' }
+      };
+      Object.assign(el.style, map[where]||{});
+    }
+
+    function mkBtn(label, tone, onClick){ const b=document.createElement('button'); b.className=`ctx-btn ${tone}`; b.textContent=label; b.addEventListener('click', onClick, { once:true }); return b; }
+
+    function renderControls(){
+      clearControls();
+      if(!(carIn && !countdown) || finished) return;
+
+      if(phase==='jackingUp'){
+        if(!frontUp){ const b1=mkBtn('⛏️ Front jack ↑','ctx-green',()=>{ ensureStarted(); if(frontUp)return; frontUp=true; car.classList.add('lift-front'); renderHUD(); maybeNextFromJackUp(); }); place(b1,'frontTop'); ctrls.appendChild(b1); }
+        if(!rearUp){ const b2=mkBtn('⛏️ Rear jack ↑','ctx-green',()=>{ ensureStarted(); if(rearUp)return; rearUp=true; car.classList.add('lift-rear'); renderHUD(); maybeNextFromJackUp(); }); place(b2,'rearBottom'); ctrls.appendChild(b2); }
+      }
+
+      if(phase==='loosen'){
+        ['FL','FR','RL','RR'].forEach(id=>{ if(!loosened.has(id)){ const b=mkBtn(`🔧 Loosen ${id}`,'ctx-amber',()=>{ ensureStarted(); if(loosened.has(id))return; loosened.add(id); renderHUD(); if(loosened.size===4) setPhase('swap'); else renderControls(); }); place(b,id); ctrls.appendChild(b); }});
+      }
+
+      if(phase==='swap'){
+        ['FL','FR','RL','RR'].forEach(id=>{ if(!swapped.has(id)){ const b=mkBtn(`♻️ Swap ${id}`,'ctx-indigo',()=>{ ensureStarted(); if(swapped.has(id))return; swapped.add(id); updateTyres(); renderHUD(); if(swapped.size===4) setPhase('tighten'); else renderControls(); }); place(b,id); ctrls.appendChild(b); }});
+      }
+
+      if(phase==='tighten'){
+        ['FL','FR','RL','RR'].forEach(id=>{ if(!tightened.has(id)){ const b=mkBtn(`🔩 Tighten ${id}`,'ctx-blue',()=>{ ensureStarted(); if(tightened.has(id))return; tightened.add(id); renderHUD(); if(tightened.size===4) setPhase('jackingDown'); else renderControls(); }); place(b,id); ctrls.appendChild(b); }});
+      }
+
+      if(phase==='jackingDown'){
+        if(!frontDown){ const b1=mkBtn('⛏️ Front jack ↓','ctx-green',()=>{ ensureStarted(); if(frontDown)return; frontDown=true; car.classList.remove('lift-front'); renderHUD(); maybeNextFromJackDown(); }); place(b1,'frontTop'); ctrls.appendChild(b1); }
+        if(!rearDown){ const b2=mkBtn('⛏️ Rear jack ↓','ctx-green',()=>{ ensureStarted(); if(rearDown)return; rearDown=true; car.classList.remove('lift-rear'); renderHUD(); maybeNextFromJackDown(); }); place(b2,'rearBottom'); ctrls.appendChild(b2); }
+      }
+
+      if(phase==='flag'){
+        const b=mkBtn('🏁 Raise STOP flag','ctx-btn-black',()=>{ ensureStarted(); if(flagRaised)return; flagRaised=true; finish(); }); b.className='ctx-btn'; b.style.background='#111827'; place(b,'flag'); ctrls.appendChild(b);
+      }
+    }
+
+    function maybeNextFromJackUp(){ if(frontUp && rearUp) setPhase('loosen'); else renderControls(); }
+    function maybeNextFromJackDown(){ if(frontDown && rearDown) setPhase('flag'); else renderControls(); }
+
+    function finish(){ finished=true; setPhase('done'); stopTimer(); finalTime.textContent=fmt(Math.floor(elapsed)); finishBanner.style.display='block';
+      car.classList.add('drs-open'); // открыть DRS при финише
+      if(bestMs==null || elapsed<bestMs){ bestMs=elapsed; localStorage.setItem('pitstop_best', String(bestMs)); bestVal.textContent=fmt(Math.floor(bestMs)); bestNote.textContent='🔥 New personal best!'; }
+      else { bestNote.textContent='Best: '+fmt(Math.floor(bestMs)); }
+      setTimeout(()=>{ car.classList.add('exit'); }, 700);
+      isArmed=false;
+      overlay.innerHTML = '<button id="btnStart" class="btn primary start-btn">Play again</button>';
+      overlay.style.pointerEvents='auto';
+      $('#btnStart').addEventListener('click',(e)=>{ e.preventDefault(); startSequence(); });
+    }
+
+    function hardReset(){ phase='pre'; isArmed=false; countdown=null; carIn=false; frontUp=false; rearUp=false; loosened.clear(); swapped.clear(); tightened.clear(); frontDown=false; rearDown=false; flagRaised=false; started=false; finished=false; elapsed=0; stopTimer(); timeVal.textContent=fmt(0); car.classList.remove('in','lift-front','lift-rear','exit','drs-open'); finishBanner.style.display='none'; overlay.innerHTML='<button id="btnStart" class="btn primary start-btn">Start</button>'; overlay.style.pointerEvents='auto'; $('#btnStart').addEventListener('click',(e)=>{ e.preventDefault(); startSequence(); }); updateTyres(); renderHUD(); setPhase('pre'); }
+
+    function startSequence(){ if(phase==='done'){ hardReset(); return; } if(isArmed) return; isArmed=true; overlay.style.pointerEvents='none'; overlay.innerHTML='<div class="count">3</div>'; countdown=3; stepCountdown(); }
+
+    function stepCountdown(){ if(countdown==null) return; const c = overlay.querySelector('.count'); if(countdown>0){ c.textContent=String(countdown); setTimeout(()=>{ countdown--; stepCountdown(); }, 800); return; } c.textContent='GO!'; setTimeout(()=>{ overlay.innerHTML=''; car.classList.add('in'); setTimeout(()=>{ carIn=true; setPhase('jackingUp'); }, 900); }, 600); countdown=null; }
+
+    function updateTyres(){
+      const setComp = (el, isYellow)=>{ if(!el) return; el.setAttribute('class', `wheel ${isYellow? 'compound-yellow':'compound-red'}`); };
+      setComp(ringFL, swapped.has('FL'));
+      setComp(ringFR, swapped.has('FR'));
+      setComp(ringRL, swapped.has('RL'));
+      setComp(ringRR, swapped.has('RR'));
+    }
+
+    // Bind start (надёжно)
+    const bindStart = ()=> startSequence();
+    if (btnStart) btnStart.addEventListener('click',(e)=>{ e.preventDefault(); bindStart(); });
+    document.addEventListener('click', (e)=>{ const t=e.target&&e.target.closest? e.target.closest('#btnStart'):null; if(t){ e.preventDefault(); bindStart(); } }, true);
+
+    btnReset.addEventListener('click', hardReset);
+    window.addEventListener('keydown',(e)=>{ if((e.key===' '||e.key==='Enter') && !isArmed){ e.preventDefault(); bindStart(); } });
+
+    // Init
+    updateTyres(); renderHUD(); setPhase('pre');
+  })();
+  </script>
+</body>
+</html>
