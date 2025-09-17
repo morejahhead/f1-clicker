@@ -225,7 +225,14 @@
 
     let started=false, finished=false, elapsed=0, t0=null, rAF=null;
 
-    let bestMs = null; try{ const b = Number(localStorage.getItem('pitstop_best')); if(Number.isFinite(b)) bestMs=b; }catch{}
+    let bestMs = null;
+    try{
+      const stored = localStorage.getItem('pitstop_best');
+      if(stored!==null){
+        const parsed = Math.floor(Number(stored));
+        if(Number.isFinite(parsed) && parsed>=0) bestMs=parsed;
+      }
+    }catch{}
     bestVal.textContent = bestMs!=null ? fmt(bestMs) : '—';
 
     function startTimer(){ if(rAF) return; t0 = performance.now() - elapsed; const tick=()=>{ if(!started||finished) return; elapsed = performance.now() - t0; timeVal.textContent = fmt(Math.floor(elapsed)); rAF = requestAnimationFrame(tick); }; rAF = requestAnimationFrame(tick); }
@@ -289,8 +296,9 @@
 
     function finish(){ finished=true; setPhase('done'); stopTimer(); finalTime.textContent=fmt(Math.floor(elapsed)); finishBanner.style.display='block';
       car.classList.add('drs-open'); // открыть DRS при финише
-      if(bestMs==null || elapsed<bestMs){ bestMs=elapsed; localStorage.setItem('pitstop_best', String(bestMs)); bestVal.textContent=fmt(Math.floor(bestMs)); bestNote.textContent='🔥 New personal best!'; }
-      else { bestNote.textContent='Best: '+fmt(Math.floor(bestMs)); }
+      const attemptMs = Math.floor(elapsed);
+      if(bestMs==null || attemptMs<bestMs){ bestMs=attemptMs; localStorage.setItem('pitstop_best', String(bestMs)); bestVal.textContent=fmt(bestMs); bestNote.textContent='🔥 New personal best!'; }
+      else { bestNote.textContent='Best: '+fmt(bestMs); }
       setTimeout(()=>{ car.classList.add('exit'); }, 700);
       isArmed=false;
       overlay.innerHTML = '<button id="btnStart" class="btn primary start-btn">Play again</button>';
